@@ -13,6 +13,7 @@ function getAdminMenu() {
     [Markup.button.callback('📺 Kanal qo\'shish', 'admin_add_channel')],
     [Markup.button.callback('🗑 Kanalni o\'chirish', 'admin_remove_channel')],
     [Markup.button.callback('📊 Statistika', 'admin_statistics')],
+    [Markup.button.callback('👥 Foydalanuvchilar', 'admin_users_list')],
     [Markup.button.callback('🔙 Foydalanuvchi menyusi', 'user_main_menu')]
   ]);
 }

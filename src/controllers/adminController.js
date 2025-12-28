@@ -135,33 +135,41 @@ async function executeAddPoints(ctx, userId, purchaseAmount) {
       return;
     }
 
-    // Xarid summasining 5% qismini hisoblaymiz (yaqin butun songa)
-    const pointsToAdd = Math.floor(purchaseAmount * 0.05 / 1000); // 1000 so‘m = 0.05 ball (masalan 1 mln = 50 ball)
-    // Agar siz 5% ni to‘liq ball sifatida qo‘shmoqchi bo‘lsangiz, pastdagini ishlating:
-    // const pointsToAdd = Math.floor(purchaseAmount * 0.05);
+    // Ball hisoblash
+    const pointsToAdd = Math.floor(purchaseAmount * 0.05 / 1000);
 
     if (pointsToAdd <= 0) {
-      await safeReply(ctx, '❌ Kiritilgan summa juda kichik. Kamida 20 000 so‘m kiriting.');
+      await safeReply(ctx, '❌ Kiritilgan summa juda kichik.');
       return;
     }
 
-    await updateUserPoints(userId, pointsToAdd, `Admin tomonidan ${purchaseAmount} so‘mlik xarid uchun qo‘shildi`, ctx.user._id);
+    // 🔹 BALLNI QO‘SHISH
+    targetUser.points += pointsToAdd;
+    await targetUser.save();
 
+    // 🔹 ADMIN GA JAVOB
     await safeReply(ctx,
       `✅ *Ball qo‘shildi!*\n\n` +
       `👤 Foydalanuvchi: ${targetUser.name}\n` +
-      `💵 Xarid summasi: ${purchaseAmount.toLocaleString('uz-UZ')} so‘m\n` +
-      `➕ Qo‘shilgan: ${formatPoints(pointsToAdd)} ball\n` +
-      `💰 Yangi balans: ${formatPoints(targetUser.points + pointsToAdd)} ball`,
-      { parse_mode: 'Markdown', ...getBackToAdminButton() }
+      `💵 Xarid: ${purchaseAmount.toLocaleString()} so‘m\n` +
+      `➕ Qo‘shildi: ${pointsToAdd} ball\n` +
+      `💰 Jami: ${targetUser.points} ball`,
+      { parse_mode: 'Markdown' }
     );
 
-    logger.info(`Ball qo‘shildi (xarid orqali): adminId=${ctx.user._id}, userId=${userId}, summa=${purchaseAmount}, points=${pointsToAdd}`);
+    // 🔥 MUHIM QISM – FOYDALANUVCHIGA XABAR
+    await ctx.telegram.sendMessage(
+      targetUser.telegramId,
+      `🎉 Sizga ${pointsToAdd} ball qo‘shildi!\n` +
+      `💰 Jami balans: ${targetUser.points} ball`
+    );
+
   } catch (error) {
-    logger.error('Ball qo‘shishda xatolik:', error);
+    console.error('Ball qo‘shishda xatolik:', error);
     await safeReply(ctx, '❌ Ball qo‘shishda xatolik yuz berdi.');
   }
 }
+
 
 
 /**
@@ -225,7 +233,7 @@ async function handleRewardCost(ctx, text) {
   ctx.session.waitingFor = 'reward_image';
 
   await safeReply(
-    ctx, 
+    ctx,
     '🖼 Endi rasm yuboring:\n\n' +
     '▫️ Oddiy rasm yuborishingiz mumkin\n' +
     '▫️ Yoki kanal postidan link yuboring (t.me/kanal/123)'
@@ -236,7 +244,7 @@ async function handleRewardCost(ctx, text) {
 function parseChannelLink(link) {
   // t.me/channel/123 yoki t.me/c/123456/789 formatlarini qo'llab-quvvatlaydi
   let match = link.match(/t\.me\/([a-zA-Z0-9_]+)\/(\d+)/);
-  
+
   if (!match) {
     // Private kanal formati: t.me/c/1234567890/123
     match = link.match(/t\.me\/c\/(\d+)\/(\d+)/);
@@ -248,7 +256,7 @@ function parseChannelLink(link) {
     }
     return null;
   }
-  
+
   return {
     username: match[1],
     messageId: Number(match[2])
@@ -267,10 +275,10 @@ async function handleRewardImage(ctx) {
   // 2️⃣ Link yuborilgan bo'lsa
   if (msg?.text) {
     const linkData = parseChannelLink(msg.text);
-    
+
     if (!linkData) {
       return safeReply(
-        ctx, 
+        ctx,
         "❌ Rasm yoki to'g'ri kanal post linkini yuboring.\n\n" +
         "Misol: t.me/kanal_nomi/123"
       );
@@ -286,7 +294,7 @@ async function handleRewardImage(ctx) {
 
       // Forward qilingan xabarda rasm borligini tekshirish
       if (!forwarded?.photo || forwarded.photo.length === 0) {
-        await ctx.telegram.deleteMessage(ctx.chat.id, forwarded.message_id).catch(() => {});
+        await ctx.telegram.deleteMessage(ctx.chat.id, forwarded.message_id).catch(() => { });
         return safeReply(ctx, "❌ Ushbu postda rasm yo'q. Iltimos, rasm bor postni tanlang.");
       }
 
@@ -302,9 +310,9 @@ async function handleRewardImage(ctx) {
 
     } catch (err) {
       console.error('Kanal postidan rasm olishda xatolik:', err);
-      
+
       let errorMsg = "❌ Linkdan rasmni olishda xatolik.\n\n";
-      
+
       if (err.response?.error_code === 400) {
         errorMsg += "Bot kanalda admin bo'lishi va rasm yuborish huquqi bo'lishi kerak.";
       } else if (err.response?.error_code === 403) {
@@ -312,7 +320,7 @@ async function handleRewardImage(ctx) {
       } else {
         errorMsg += "Link to'g'ri ekanligini va bot kanalda admin ekanligini tekshiring.";
       }
-      
+
       return safeReply(ctx, errorMsg);
     }
   }
@@ -711,6 +719,57 @@ async function showStatistics(ctx) {
   }
 }
 
+
+
+
+
+
+async function showUsersPaginated(ctx, page = 1) {
+  const LIMIT = 10;
+  const skip = (page - 1) * LIMIT;
+
+  const total = await User.countDocuments();
+  const users = await User.find().skip(skip).limit(LIMIT);
+
+  let text = `👥 *Foydalanuvchilar (${page})*\n\n`;
+
+  users.forEach((u, i) => {
+    text +=
+      `*${(page - 1) * 10 + i + 1}.* 👤 *${u.name || 'Nomaʼlum'}*\n` +
+      `   🆔 @${u.username || '—'}\n` +
+      `   📞 ${u.phone || 'Telefon yo‘q'}\n` +
+      `   💰 Ball: *${u.points}*\n\n`;
+  });
+
+
+  const buttons = [];
+
+  if (page > 1) {
+    buttons.push([Markup.button.callback('⬅️ Oldingi', `admin_users_${page - 1}`)]);
+  }
+
+  if (page * 10 < total) {
+    buttons.push([Markup.button.callback('➡️ Keyingi', `admin_users_${page + 1}`)]);
+  }
+
+  buttons.push([Markup.button.callback('🔙 Admin menyu', 'admin_main')]);
+
+  await safeEditMessage(
+    ctx,
+    text,
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Oldingi', `admin_users_${page - 1}`)],
+      [Markup.button.callback('➡️ Keyingi', `admin_users_${page + 1}`)],
+      [Markup.button.callback('🔙 Admin menyu', 'admin_main')]
+    ])
+  );
+
+
+
+}
+
+
+
 module.exports = {
   showAdminMenu,
   startSearchUser,
@@ -735,6 +794,7 @@ module.exports = {
   handleRewardDesc,
   handleRewardName,
   adminCancelRewardHandler,
-  adminConfirmRewardHandler
+  adminConfirmRewardHandler,
+  showUsersPaginated
 
 };

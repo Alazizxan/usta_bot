@@ -26,13 +26,11 @@ async function answerCallback(ctx, text = '✅', showAlert = false) {
 /**
  * Xabarni tahrirlash
  */
-async function safeEditMessage(ctx, message, extra = {}) {
+async function safeEditMessage(ctx, text, extra = {}) {
   try {
-    await ctx.editMessageText(message, extra);
-  } catch (error) {
-    logger.error('Xabarni tahrirlashda xatolik:', error);
-    // Agar tahrirlash imkoni bo'lmasa, yangi xabar yuboramiz
-    await safeReply(ctx, message, extra);
+    await ctx.editMessageText(text, extra);
+  } catch (e) {
+    await ctx.reply(text, extra);
   }
 }
 

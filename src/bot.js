@@ -17,6 +17,13 @@ const { grantReward } = require('./services/rewardService');
 
 
 
+
+
+const pendingRewards = new Map();
+
+
+
+
 // Controllers
 const userController = require('./controllers/userController');
 const adminController = require('./controllers/adminController');
@@ -81,9 +88,70 @@ bot.command('admin', asyncHandler(async (ctx) => {
   await adminController.showAdminMenu(ctx);
 }));
 
+bot.on('photo', async (ctx) => {
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) return;
+
+  const photo = ctx.message.photo.at(-1);
+  const admins = await User.find({ isAdmin: true });
+
+  for (const admin of admins) {
+    const sent = await ctx.telegram.sendPhoto(
+      admin.telegramId,
+      photo.file_id,
+      {
+        caption:
+          `📸 Yangi rasm\n👤 ${user.name}\n✍️ Rasmga javob qilib ball yozing`,
+        parse_mode: 'Markdown'
+      }
+    );
+
+    pendingRewards.set(sent.message_id, {
+      userId: user._id
+    });
+  }
+});
+
+
+
+
 // ==================== TEXT MESSAGE HANDLER ====================
 bot.on('text', asyncHandler(async (ctx) => {
   const text = ctx.message.text;
+
+
+  if (ctx.message?.reply_to_message) {
+    const repliedMsgId = ctx.message.reply_to_message.message_id;
+
+    const data = pendingRewards.get(repliedMsgId);
+    if (data) {
+      const admin = await User.findOne({ telegramId: ctx.from.id });
+      if (!admin || !admin.isAdmin) return;
+
+      const amount = parseInt(ctx.message.text);
+      if (isNaN(amount)) {
+        return ctx.reply('❌ Iltimos, faqat raqam kiriting');
+      }
+
+      const user = await User.findById(data.userId);
+      if (!user) return;
+
+      user.points += amount;
+      await user.save();
+
+      await ctx.telegram.sendMessage(
+        user.telegramId,
+        `🎉 Sizga ${amount} ball qo‘shildi!\n💰 Jami: ${user.points}`
+      );
+
+      await ctx.reply(`✅ ${user.name} ga ${amount} ball qo‘shildi`);
+
+      pendingRewards.delete(repliedMsgId);
+      return; // ⬅️ MUHIM
+    }
+  }
+
+
 
   // Session holatini tekshirish
   if (ctx.session && ctx.session.registrationStep) {
@@ -222,12 +290,62 @@ bot.on('text', asyncHandler(async (ctx) => {
     return;
   }
 
+
+
+  // global map (memory)
+
+
   // Oddiy xabar - yo'riqnoma
-  await ctx.reply(
-    '💡 Botdan foydalanish uchun /start buyrug\'ini yuboring.\n' +
-    'Adminlar uchun: /admin'
-  );
+  // faqat oddiy xabar bo‘lsa ko‘rsat
+  if (!ctx.message.reply_to_message && !ctx.session?.waitingFor) {
+    await ctx.reply(
+      '💡 Botdan foydalanish uchun /start buyrug\'ini yuboring.\n' +
+      'Adminlar uchun: /admin'
+    );
+  }
+
 }));
+
+
+
+bot.on('message', async (ctx) => {
+  // faqat adminlar
+  const admin = await User.findOne({ telegramId: ctx.from.id });
+  if (!admin || !admin.isAdmin) return;
+
+  // faqat reply bo‘lsa
+  if (!ctx.message.reply_to_message) return;
+
+  const repliedMsgId = ctx.message.reply_to_message.message_id;
+
+  // shu rasm bizning ro‘yxatda bormi?
+  const data = pendingRewards.get(repliedMsgId);
+  if (!data) return;
+
+  const amount = parseInt(ctx.message.text);
+  if (isNaN(amount) || amount <= 0) {
+    return ctx.reply('❌ Iltimos faqat raqam kiriting.');
+  }
+
+  // BALL QO‘SHAMIZ
+  const user = await User.findById(data.userId);
+  if (!user) return;
+
+  user.points += amount;
+  await user.save();
+
+  // foydalanuvchiga xabar
+  await ctx.telegram.sendMessage(
+    user.telegramId,
+    `🎉 Sizga ${amount} ball qo‘shildi!\n💰 Jami: ${user.points}`
+  );
+
+  // admin javobi
+  await ctx.reply(`✅ ${user.name} ga ${amount} ball qo‘shildi`);
+
+  // bir martalik
+  pendingRewards.delete(repliedMsgId);
+});
 
 // ==================== CONTACT HANDLER ====================
 bot.on('contact', asyncHandler(async (ctx) => {
@@ -297,6 +415,35 @@ bot.action(/^reward_page:(\d+)$/, asyncHandler(async (ctx) => {
 }));
 
 
+
+
+
+
+
+bot.action('admin_users_list', async (ctx) => {
+  await adminController.showUsersPaginated(ctx, 1);
+
+
+});
+
+
+bot.command('testbtn', async (ctx) => {
+  await ctx.reply(
+    'TEST BUTTON',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ OLDINGI', 'test_prev')],
+      [Markup.button.callback('➡️ KEYINGI', 'test_next')]
+    ])
+  );
+});
+
+
+
+bot.action(/^admin_users_(\d+)$/, async (ctx) => {
+  const page = parseInt(ctx.match[1]);
+  await adminController.showUsersPaginated(ctx, page);
+
+});
 
 
 
