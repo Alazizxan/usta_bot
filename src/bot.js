@@ -308,44 +308,44 @@ bot.on('text', asyncHandler(async (ctx) => {
 
 
 
-bot.on('message', async (ctx) => {
-  // faqat adminlar
-  const admin = await User.findOne({ telegramId: ctx.from.id });
-  if (!admin || !admin.isAdmin) return;
+// bot.on('message', async (ctx) => {
+//   // faqat adminlar
+//   const admin = await User.findOne({ telegramId: ctx.from.id });
+//   if (!admin || !admin.isAdmin) return;
 
-  // faqat reply bo‘lsa
-  if (!ctx.message.reply_to_message) return;
+//   // faqat reply bo‘lsa
+//   if (!ctx.message.reply_to_message) return;
 
-  const repliedMsgId = ctx.message.reply_to_message.message_id;
+//   const repliedMsgId = ctx.message.reply_to_message.message_id;
 
-  // shu rasm bizning ro‘yxatda bormi?
-  const data = pendingRewards.get(repliedMsgId);
-  if (!data) return;
+//   // shu rasm bizning ro‘yxatda bormi?
+//   const data = pendingRewards.get(repliedMsgId);
+//   if (!data) return;
 
-  const amount = parseInt(ctx.message.text);
-  if (isNaN(amount) || amount <= 0) {
-    return ctx.reply('❌ Iltimos faqat raqam kiriting.');
-  }
+//   const amount = parseInt(ctx.message.text);
+//   if (isNaN(amount) || amount <= 0) {
+//     return ctx.reply('❌ Iltimos faqat raqam kiriting.');
+//   }
 
-  // BALL QO‘SHAMIZ
-  const user = await User.findById(data.userId);
-  if (!user) return;
+//   // BALL QO‘SHAMIZ
+//   const user = await User.findById(data.userId);
+//   if (!user) return;
 
-  user.points += amount;
-  await user.save();
+//   user.points += amount;
+//   await user.save();
 
-  // foydalanuvchiga xabar
-  await ctx.telegram.sendMessage(
-    user.telegramId,
-    `🎉 Sizga ${amount} ball qo‘shildi!\n💰 Jami: ${user.points}`
-  );
+//   // foydalanuvchiga xabar
+//   await ctx.telegram.sendMessage(
+//     user.telegramId,
+//     `🎉 Sizga ${amount} ball qo‘shildi!\n💰 Jami: ${user.points}`
+//   );
 
-  // admin javobi
-  await ctx.reply(`✅ ${user.name} ga ${amount} ball qo‘shildi`);
+//   // admin javobi
+//   await ctx.reply(`✅ ${user.name} ga ${amount} ball qo‘shildi`);
 
-  // bir martalik
-  pendingRewards.delete(repliedMsgId);
-});
+//   // bir martalik
+//   pendingRewards.delete(repliedMsgId);
+// });
 
 // ==================== CONTACT HANDLER ====================
 bot.on('contact', asyncHandler(async (ctx) => {

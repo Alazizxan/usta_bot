@@ -108,7 +108,7 @@ async function startAddPoints(ctx, userId = null) {
     ctx.session.targetUserId = userId;
 
     const message = userId
-      ? '💵 *Ball qo‘shish*\n\nFoydalanuvchining *xarid summasini* kiriting (so‘mda):\n\nMasalan: `500000`\n\n(Ball summaning 5% qismi sifatida qo‘shiladi)'
+      ? '💵 *Ball qo‘shish*\n\nFoydalanuvchining *Ballini* kiriting :\n\nMasalan: `5000`\n\n'
       : '💵 *Ball qo‘shish*\n\nAvval foydalanuvchini qidiring: /admin';
 
     await safeEditMessage(ctx, message, {
@@ -136,7 +136,7 @@ async function executeAddPoints(ctx, userId, purchaseAmount) {
     }
 
     // Ball hisoblash
-    const pointsToAdd = Math.floor(purchaseAmount * 0.05 / 1000);
+    const pointsToAdd = purchaseAmount;
 
     if (pointsToAdd <= 0) {
       await safeReply(ctx, '❌ Kiritilgan summa juda kichik.');
